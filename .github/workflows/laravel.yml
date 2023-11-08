@@ -6,43 +6,52 @@ on:
       - main
 
 jobs:
-  build:
+  laravel-tests:
     runs-on: ubuntu-latest
 
     services:
       mysql:
         image: mysql:8.1
         env:
-          MYSQL_ROOT_PASSWORD: root
+          MYSQL_ROOT_PASSWORD: secret
           MYSQL_DATABASE: laravel
+          MYSQL_USER: user
+          MYSQL_PASSWORD: secret
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root --password=secret"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+          --default-authentication-plugin=mysql_native_password
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-    - name: Set up PHP
+    - name: Set up PHP with extensions
       uses: shivammathur/setup-php@v2
       with:
         php-version: '8.1'
         extensions: mbstring, pdo_mysql
-        tools: composer:v2
+        tools: composer
 
-    - name: Install Dependencies
-      run: composer install --prefer-dist --no-progress
-
-    - name: Set up .env file
+    - name: Copy .env.ci to .env
       run: cp .env.ci .env
 
-    - name: Generate key
+    - name: Install Composer dependencies
+      run: composer install --prefer-dist --no-progress --no-suggest
+
+    - name: Generate application key
       run: php artisan key:generate
 
-    - name: Migrate database
-      run: php artisan migrate --force
+    - name: Run database migrations
+      run: |
+        php artisan migrate --force
 
-    - name: Seed database
+    - name: Run database seeders
       run: php artisan db:seed
 
-    - name: Run Tests
+    - name: Execute tests
       run: php artisan test
